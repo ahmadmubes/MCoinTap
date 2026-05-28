@@ -87,6 +87,7 @@ async function claim(){
   });
 
   const data = await res.json();
+  alert(JSON.stringify(data));
 console.log("STATUS:", res.status);
 console.log("DATA:", data);
   if(res.ok){
