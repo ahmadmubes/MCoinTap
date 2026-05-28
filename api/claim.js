@@ -68,20 +68,16 @@ export default async function handler(req, res) {
 
     const telegram_id = tgUser.id;
     const username = tgUser.username || null;
-
     const ref = params.get("start_param") || params.get("ref");
 
-    // GET USER
     let { data: user } = await supabase
       .from("users")
       .select("*")
       .eq("telegram_id", telegram_id)
       .maybeSingle();
 
-    // CREATE USER
     if (!user) {
-
-      const { data: newUser, error } = await supabase
+      const { data: newUser } = await supabase
         .from("users")
         .insert({
           telegram_id,
@@ -97,16 +93,11 @@ export default async function handler(req, res) {
         .select()
         .maybeSingle();
 
-      if (error) {
-        return res.status(500).json({ error: "Insert user gagal" });
-      }
-
       user = newUser;
     }
 
-    // REFERRAL SYSTEM
+    // referral
     if (ref && ref != telegram_id) {
-
       const { data: refUser } = await supabase
         .from("users")
         .select("telegram_id, balance, referral_count")
@@ -114,7 +105,6 @@ export default async function handler(req, res) {
         .maybeSingle();
 
       if (refUser) {
-
         await supabase
           .from("users")
           .update({
@@ -133,25 +123,8 @@ export default async function handler(req, res) {
       }
     }
 
-    const now = Date.now();
-
-    // RESET DAILY
-    if (user.last_reset !== today()) {
-      await supabase
-        .from("users")
-        .update({
-          daily_count: 0,
-          last_reset: today()
-        })
-        .eq("telegram_id", telegram_id);
-
-      user.daily_count = 0;
-    }
-
-    // COOLDOWN
     if (user.last_claim) {
-      const diff = now - new Date(user.last_claim).getTime();
-
+      const diff = Date.now() - new Date(user.last_claim).getTime();
       if (diff < COOLDOWN) {
         return res.status(429).json({
           error: "Cooldown aktif",
@@ -160,7 +133,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // LIMIT
     if (user.daily_count >= MAX_DAILY) {
       return res.status(403).json({ error: "Limit harian habis" });
     }
@@ -180,17 +152,14 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     return res.status(200).json({
-  success: true,
-  reward: REWARD,
-  balance: updated?.balance ?? newBalance,
-  remaining_today: MAX_DAILY - newCount,
-  cooldown: COOLDOWN / 1000,
-  daily_limit: MAX_DAILY,
-  daily_used: newCount
-});
+      success: true,
+      reward: REWARD,
+      balance: updated.balance,
+      remaining_today: MAX_DAILY - newCount,
+      cooldown: COOLDOWN / 1000
+    });
 
   } catch (err) {
-    console.log("SERVER ERROR:", err);
     return res.status(500).json({ error: "Server error" });
   }
 }
