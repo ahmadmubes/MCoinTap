@@ -2,7 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>MCoinTap Admin</title>
+<title>MCoinTap Admin PRO</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style>
 body{
@@ -11,6 +13,8 @@ body{
   color:white;
   padding:20px;
 }
+
+h2{text-align:center}
 
 .box{
   background:#1e293b;
@@ -21,7 +25,7 @@ body{
 
 button{
   margin:5px;
-  padding:5px 10px;
+  padding:6px 10px;
   border:none;
   border-radius:6px;
   cursor:pointer;
@@ -36,24 +40,37 @@ button{
 
 <body>
 
-<h2>🔥 MCoinTap Admin Panel</h2>
+<h2>🔥 MCoinTap Admin Panel PRO</h2>
+
+<div id="status">Checking admin...</div>
+
+<div id="panel" style="display:none;">
 
 <button onclick="loadUsers()">Load Users</button>
-<button onclick="loadWithdraw()">Load Withdraw</button>
+<button onclick="loadWithdraw()">Withdraw Requests</button>
 
 <div id="users"></div>
 <div id="withdraw"></div>
 
+</div>
+
 <script>
 
-const ADMIN_ID = prompt("Enter Admin ID");
+const tg = window.Telegram.WebApp;
+tg.expand();
 
+const initData = tg.initData;
+
+// ======================
+// API CALL (SECURE)
+// ======================
 async function api(body){
+
   const res = await fetch("/api/admin",{
     method:"POST",
     headers:{ "Content-Type":"application/json" },
     body: JSON.stringify({
-      telegram_id: ADMIN_ID,
+      initData,
       ...body
     })
   });
@@ -61,12 +78,34 @@ async function api(body){
   return await res.json();
 }
 
+// ======================
+// AUTO CHECK ADMIN
+// ======================
+async function init(){
+
+  const check = await api({action:"get_users"});
+
+  if(check.error){
+    document.getElementById("status").innerHTML =
+      "❌ NOT AUTHORIZED (ONLY ADMIN CAN ACCESS)";
+    return;
+  }
+
+  document.getElementById("status").style.display = "none";
+  document.getElementById("panel").style.display = "block";
+}
+
+init();
+
+// ======================
 // USERS
+// ======================
 async function loadUsers(){
+
   const data = await api({action:"get_users"});
 
   document.getElementById("users").innerHTML =
-  "<h3>Users</h3>" +
+  "<h3>👤 Users</h3>" +
   data.data.map(u=>`
     <div class="box">
       ID: ${u.telegram_id}<br>
@@ -90,12 +129,15 @@ async function unban(id){
   loadUsers();
 }
 
+// ======================
 // WITHDRAW
+// ======================
 async function loadWithdraw(){
+
   const data = await api({action:"get_withdraw"});
 
   document.getElementById("withdraw").innerHTML =
-  "<h3>Withdraw Requests</h3>" +
+  "<h3>💸 Withdraw Requests</h3>" +
   data.data.map(w=>`
     <div class="box">
       User: ${w.telegram_id}<br>
