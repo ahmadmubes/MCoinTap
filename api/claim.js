@@ -67,7 +67,7 @@ export default async function handler(req, res) {
     const params = new URLSearchParams(initData);
     const tgUser = JSON.parse(params.get("user"));
     const telegram_id = tgUser.id;
-
+const ref = params.get("start_param") || params.get("ref");
     // 🔥 FIX PENTING: pakai maybeSingle biar tidak crash
     let { data: user, error } = await supabase
       .from("users")
@@ -81,7 +81,37 @@ export default async function handler(req, res) {
 
     // CREATE USER kalau null
     if (!user) {
+if (ref && ref != telegram_id) {
 
+  // cek user referral (yang mengajak)
+  const { data: refUser } = await supabase
+    .from("users")
+    .select("telegram_id, balance, referral_count")
+    .eq("telegram_id", ref)
+    .maybeSingle();
+
+  // kalau ref valid
+  if (refUser) {
+
+    // 1. update USER BARU (yang join)
+    await supabase
+      .from("users")
+      .update({
+        ref_by: ref,
+        balance: (user.balance || 0) + 200
+      })
+      .eq("telegram_id", telegram_id);
+
+    // 2. update USER REFERRER (yang mengajak)
+    await supabase
+      .from("users")
+      .update({
+        balance: (refUser.balance || 0) + 500,
+        referral_count: (refUser.referral_count || 0) + 1
+      })
+      .eq("telegram_id", ref);
+  }
+}
       const { data: newUser, error: insertError } = await supabase
         .from("users")
         .insert({
