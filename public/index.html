@@ -28,6 +28,17 @@ body{
   text-align:center;
 }
 
+h2{
+  margin-bottom:10px;
+}
+
+.balance{
+  font-size:34px;
+  margin:15px 0;
+  font-weight:bold;
+  color:#22c55e;
+}
+
 button{
   width:100%;
   padding:15px;
@@ -36,11 +47,17 @@ button{
   background:#22c55e;
   color:white;
   font-weight:bold;
+  font-size:16px;
 }
 
-.balance{
-  font-size:32px;
-  margin:15px 0;
+button:disabled{
+  opacity:0.6;
+}
+
+.info{
+  margin-top:10px;
+  font-size:13px;
+  opacity:0.8;
 }
 </style>
 </head>
@@ -48,6 +65,7 @@ button{
 <body>
 
 <div class="card">
+
   <h2>💰 MCoinTap</h2>
 
   <div id="user">Loading...</div>
@@ -56,9 +74,10 @@ button{
     <span id="balance">0</span> Point
   </div>
 
-  <button onclick="claim()">🎁 Claim</button>
+  <button id="btn" onclick="claim()">🎁 CLAIM</button>
 
-  <p id="info"></p>
+  <div class="info" id="info">Ready</div>
+
 </div>
 
 <script>
@@ -66,32 +85,68 @@ button{
 const tg = window.Telegram?.WebApp;
 tg?.expand();
 
-const user = tg?.initDataUnsafe?.user || {id:0,first_name:"Guest"};
+const user = tg?.initDataUnsafe?.user || {
+  id: 0,
+  first_name: "Guest"
+};
 
 document.getElementById("user").innerText = user.first_name;
 
+let cooldown = false;
+
 async function claim(){
 
-  document.getElementById("info").innerText = "Loading...";
+  if(cooldown) return;
+  cooldown = true;
 
-  const res = await fetch("/api/claim", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      telegram_id: user.id
-    })
-  });
+  const btn = document.getElementById("btn");
+  btn.disabled = true;
 
-  const data = await res.json();
+  document.getElementById("info").innerText = "Processing...";
 
-  if(res.ok){
+  try {
+
+    const res = await fetch("/api/claim", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        telegram_id: user.id
+      })
+    });
+
+    const data = await res.json();
+
+    console.log("RESPONSE:", data);
+
+    if(!res.ok){
+      document.getElementById("info").innerText =
+        data.error + (data.cooldown_left ? " ("+data.cooldown_left+"s)" : "");
+
+      cooldown = false;
+      btn.disabled = false;
+      return;
+    }
+
     document.getElementById("balance").innerText = data.balance;
-    document.getElementById("info").innerText = "+100 claimed";
-  } else {
-    document.getElementById("info").innerText = data.error;
+
+    document.getElementById("info").innerText =
+      "+100 reward | sisa hari ini: " + (data.remaining_today ?? "-");
+
+  } catch(err){
+
+    console.log(err);
+    document.getElementById("info").innerText = "Server error";
+
   }
+
+  // cooldown UI
+  setTimeout(() => {
+    cooldown = false;
+    btn.disabled = false;
+    document.getElementById("info").innerText = "Ready";
+  }, 5000);
 
 }
 
