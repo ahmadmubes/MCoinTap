@@ -66,87 +66,77 @@ export default async function handler(req, res) {
 
     const params = new URLSearchParams(initData);
     const tgUser = JSON.parse(params.get("user"));
+
     const telegram_id = tgUser.id;
-const ref = params.get("start_param") || params.get("ref");
-    // 🔥 FIX PENTING: pakai maybeSingle biar tidak crash
-    let { data: user, error } = await supabase
+
+    const ref = params.get("start_param") || params.get("ref");
+
+    // GET USER
+    let { data: user } = await supabase
       .from("users")
       .select("*")
       .eq("telegram_id", telegram_id)
       .maybeSingle();
 
-    // DEBUG LOG
-    console.log("USER FROM DB:", user);
-    console.log("ERROR DB:", error);
-
-    // CREATE USER kalau null
+    // CREATE USER JIKA BELUM ADA
     if (!user) {
-if (ref && ref != telegram_id) {
 
-  // cek user referral (yang mengajak)
-  const { data: refUser } = await supabase
-    .from("users")
-    .select("telegram_id, balance, referral_count")
-    .eq("telegram_id", ref)
-    .maybeSingle();
-
-  // kalau ref valid
-  if (refUser) {
-
-    // 1. update USER BARU (yang join)
-    await supabase
-      .from("users")
-      .update({
-        ref_by: ref,
-        balance: (user.balance || 0) + 200
-      })
-      .eq("telegram_id", telegram_id);
-
-    // 2. update USER REFERRER (yang mengajak)
-    await supabase
-      .from("users")
-      .update({
-        balance: (refUser.balance || 0) + 500,
-        referral_count: (refUser.referral_count || 0) + 1
-      })
-      .eq("telegram_id", ref);
-  }
-}
-      const { data: newUser, error: insertError } = await supabase
+      const { data: newUser, error } = await supabase
         .from("users")
         .insert({
-  telegram_id,
-  balance: 0,
-  daily_count: 0,
-  last_claim: null,
-  last_reset: today(),
-  ref_by: null,
-  referral_count: 0
-})
+          telegram_id,
+          balance: 0,
+          daily_count: 0,
+          last_claim: null,
+          last_reset: today(),
+          ref_by: null,
+          referral_count: 0
+        })
         .select()
         .maybeSingle();
 
-      if (insertError) {
-        console.log("INSERT ERROR:", insertError);
+      if (error) {
         return res.status(500).json({ error: "Insert user gagal" });
       }
 
       user = newUser;
     }
 
-    // 🔥 SAFETY CHECK WAJIB
-    if (!user) {
-      return res.status(500).json({
-        error: "User null setelah create"
-      });
+    // 🔥 FIX PENTING: REFERRAL DIPINDAH KE SINI (SETELAH USER ADA)
+    if (ref && ref != telegram_id) {
+
+      const { data: refUser } = await supabase
+        .from("users")
+        .select("telegram_id, balance, referral_count")
+        .eq("telegram_id", ref)
+        .maybeSingle();
+
+      if (refUser) {
+
+        // update user baru
+        await supabase
+          .from("users")
+          .update({
+            ref_by: ref,
+            balance: (user.balance || 0) + 200
+          })
+          .eq("telegram_id", telegram_id);
+
+        // update referrer
+        await supabase
+          .from("users")
+          .update({
+            balance: (refUser.balance || 0) + 500,
+            referral_count: (refUser.referral_count || 0) + 1
+          })
+          .eq("telegram_id", ref);
+      }
     }
 
     const now = Date.now();
 
     // RESET DAILY
     if (user.last_reset !== today()) {
-      user.daily_count = 0;
-
       await supabase
         .from("users")
         .update({
@@ -154,6 +144,8 @@ if (ref && ref != telegram_id) {
           last_reset: today()
         })
         .eq("telegram_id", telegram_id);
+
+      user.daily_count = 0;
     }
 
     // COOLDOWN
