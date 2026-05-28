@@ -1,65 +1,46 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MCoinTap</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MCoinTap</title>
 
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-<style>
-body{
-  margin:0;
-  font-family:Arial;
-  background:#0f172a;
-  color:white;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-}
-
-.card{
-  width:90%;
-  max-width:400px;
-  background:rgba(255,255,255,0.05);
-  padding:20px;
-  border-radius:15px;
-  text-align:center;
-}
-
-h2{
-  margin-bottom:10px;
-}
-
-.balance{
-  font-size:34px;
-  margin:15px 0;
-  font-weight:bold;
-  color:#22c55e;
-}
-
-button{
-  width:100%;
-  padding:15px;
-  border:none;
-  border-radius:10px;
-  background:#22c55e;
-  color:white;
-  font-weight:bold;
-  font-size:16px;
-}
-
-button:disabled{
-  opacity:0.6;
-}
-
-.info{
-  margin-top:10px;
-  font-size:13px;
-  opacity:0.8;
-}
-</style>
+  <style>
+    body{
+      margin:0;
+      font-family:Arial;
+      background:#0f172a;
+      color:white;
+      display:flex;
+      justify-content:center;
+      padding:20px;
+    }
+    .card{
+      width:100%;
+      max-width:420px;
+      background:#1e293b;
+      padding:20px;
+      border-radius:15px;
+    }
+    button{
+      width:100%;
+      padding:12px;
+      border:none;
+      border-radius:10px;
+      background:#22c55e;
+      color:white;
+      font-weight:bold;
+      margin-top:10px;
+    }
+    .box{
+      margin-top:15px;
+      padding:10px;
+      background:#0f172a;
+      border-radius:10px;
+    }
+  </style>
 </head>
 
 <body>
@@ -70,85 +51,68 @@ button:disabled{
 
   <div id="user">Loading...</div>
 
-  <div class="balance">
-    <span id="balance">0</span> Point
+  <div class="box">
+    💰 Balance: <span id="balance">0</span>
   </div>
 
-  <button id="btn" onclick="claim()">🎁 CLAIM</button>
+  <button onclick="claim()">CLAIM</button>
 
-  <div class="info" id="info">Ready</div>
+  <div class="box">
+    👥 Referral: <span id="ref">0</span>
+  </div>
+
+  <div class="box">
+    🏆 Leaderboard
+    <div id="leaderboard">Loading...</div>
+  </div>
 
 </div>
 
 <script>
 
-const tg = window.Telegram?.WebApp;
-tg?.expand();
+const tg = window.Telegram.WebApp;
+tg.expand();
 
-const user = tg?.initDataUnsafe?.user || {
-  id: 0,
-  first_name: "Guest"
-};
+const user = tg.initDataUnsafe.user;
 
-document.getElementById("user").innerText = user.first_name;
-
-let cooldown = false;
+document.getElementById("user").innerText =
+  user.first_name + " (" + (user.username || "no username") + ")";
 
 async function claim(){
 
-  if(cooldown) return;
-  cooldown = true;
+  const res = await fetch("/api/claim", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      initData: tg.initData
+    })
+  });
 
-  const btn = document.getElementById("btn");
-  btn.disabled = true;
+  const data = await res.json();
 
-  document.getElementById("info").innerText = "Processing...";
-
-  try {
-
-    const res = await fetch("/api/claim", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-      initData: window.Telegram.WebApp.initData
-      })
-    });
-
-    const data = await res.json();
-
-    console.log("RESPONSE:", data);
-
-    if(!res.ok){
-      document.getElementById("info").innerText =
-        data.error + (data.cooldown_left ? " ("+data.cooldown_left+"s)" : "");
-
-      cooldown = false;
-      btn.disabled = false;
-      return;
-    }
-
+  if(data.balance){
     document.getElementById("balance").innerText = data.balance;
-
-    document.getElementById("info").innerText =
-      "+100 reward | sisa hari ini: " + (data.remaining_today ?? "-");
-
-  } catch(err){
-
-    console.log(err);
-    document.getElementById("info").innerText = "Server error";
-
+  } else {
+    alert(data.error);
   }
-
-  // cooldown UI
-  setTimeout(() => {
-    cooldown = false;
-    btn.disabled = false;
-    document.getElementById("info").innerText = "Ready";
-  }, 5000);
-
 }
+
+async function loadLeaderboard(){
+
+  const res = await fetch("/api/leaderboard");
+  const data = await res.json();
+
+  document.getElementById("leaderboard").innerHTML =
+    data.data.map((u,i)=>`
+      <div>
+        #${i+1} ${u.username || u.telegram_id}
+        - ${u.balance} 💰
+        - Ref: ${u.referral_count || 0}
+      </div>
+    `).join("");
+}
+
+loadLeaderboard();
 
 </script>
 
