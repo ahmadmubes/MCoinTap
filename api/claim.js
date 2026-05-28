@@ -58,6 +58,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing initData" });
     }
 
+    // VERIFY TELEGRAM
     const valid = verifyTelegram(initData);
     if (!valid) {
       return res.status(403).json({ error: "Invalid Telegram" });
@@ -70,14 +71,30 @@ export default async function handler(req, res) {
     const username = tgUser.username || null;
     const ref = params.get("start_param") || params.get("ref");
 
+    // IP + DEVICE
+    const ip =
+      req.headers["x-forwarded-for"] ||
+      req.socket.remoteAddress ||
+      "unknown";
+
+    const userAgent = req.headers["user-agent"] || "";
+
+    const device_id = crypto
+      .createHash("sha256")
+      .update(String(telegram_id) + userAgent)
+      .digest("hex");
+
+    // GET USER
     let { data: user } = await supabase
       .from("users")
       .select("*")
       .eq("telegram_id", telegram_id)
       .maybeSingle();
 
+    // CREATE USER
     if (!user) {
-      const { data: newUser } = await supabase
+
+      const { data: newUser, error } = await supabase
         .from("users")
         .insert({
           telegram_id,
@@ -88,16 +105,49 @@ export default async function handler(req, res) {
           last_reset: today(),
           ref_by: null,
           referral_count: 0,
+          device_id,
+          ip_address: ip,
+          last_ip: ip,
           created_at: new Date().toISOString()
         })
         .select()
         .maybeSingle();
 
+      if (error) {
+        return res.status(500).json({ error: "Insert user gagal" });
+      }
+
       user = newUser;
     }
 
-    // referral
+    // 🔥 ANTI MULTI ACCOUNT PRO
+    if (user) {
+
+      const { data: ipUsers } = await supabase
+        .from("users")
+        .select("telegram_id")
+        .eq("ip_address", ip);
+
+      if (ipUsers && ipUsers.length >= 2 && !user.device_id) {
+        return res.status(403).json({
+          error: "Too many accounts from same IP"
+        });
+      }
+
+      if (user.device_id && user.device_id !== device_id) {
+        return res.status(403).json({
+          error: "Device mismatch detected"
+        });
+      }
+    }
+
+    // REFERRAL SAFETY
+    if (ref && ref == telegram_id) {
+      return res.status(400).json({ error: "Invalid referral" });
+    }
+
     if (ref && ref != telegram_id) {
+
       const { data: refUser } = await supabase
         .from("users")
         .select("telegram_id, balance, referral_count")
@@ -105,6 +155,7 @@ export default async function handler(req, res) {
         .maybeSingle();
 
       if (refUser) {
+
         await supabase
           .from("users")
           .update({
@@ -123,6 +174,7 @@ export default async function handler(req, res) {
       }
     }
 
+    // COOLDOWN
     if (user.last_claim) {
       const diff = Date.now() - new Date(user.last_claim).getTime();
       if (diff < COOLDOWN) {
@@ -133,6 +185,7 @@ export default async function handler(req, res) {
       }
     }
 
+    // DAILY LIMIT
     if (user.daily_count >= MAX_DAILY) {
       return res.status(403).json({ error: "Limit harian habis" });
     }
@@ -145,7 +198,8 @@ export default async function handler(req, res) {
       .update({
         balance: newBalance,
         daily_count: newCount,
-        last_claim: new Date().toISOString()
+        last_claim: new Date().toISOString(),
+        last_ip: ip
       })
       .eq("telegram_id", telegram_id)
       .select()
@@ -160,6 +214,7 @@ export default async function handler(req, res) {
     });
 
   } catch (err) {
+    console.log("SERVER ERROR:", err);
     return res.status(500).json({ error: "Server error" });
   }
 }
