@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MCoinTap</title>
+  <title>MCoinTap V2</title>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
@@ -33,12 +33,24 @@
       color:white;
       font-weight:bold;
       margin-top:10px;
+      cursor:pointer;
+    }
+    input{
+      width:100%;
+      padding:10px;
+      margin-top:10px;
+      border-radius:8px;
+      border:none;
     }
     .box{
       margin-top:15px;
       padding:10px;
       background:#0f172a;
       border-radius:10px;
+    }
+    .small{
+      font-size:12px;
+      opacity:0.7;
     }
   </style>
 </head>
@@ -55,10 +67,28 @@
     💰 Balance: <span id="balance">0</span>
   </div>
 
+  <div class="box">
+    ⏳ Cooldown: <span id="cooldown">-</span> sec
+  </div>
+
+  <div class="box">
+    🎯 Sisa Claim Hari Ini: <span id="remain">-</span>
+  </div>
+
   <button onclick="claim()">CLAIM</button>
 
   <div class="box">
     👥 Referral: <span id="ref">0</span>
+  </div>
+
+  <div class="box">
+    💸 Withdraw DANA
+
+    <input id="dana" placeholder="Nomor DANA">
+
+    <button onclick="withdraw()">WITHDRAW</button>
+
+    <div class="small">Min withdraw 5000 coin</div>
   </div>
 
   <div class="box">
@@ -76,7 +106,9 @@ tg.expand();
 const user = tg.initDataUnsafe.user;
 
 document.getElementById("user").innerText =
-  user.first_name + " (" + (user.username || "no username") + ")";
+  user.first_name + " @" + (user.username || "-");
+
+let lastCooldown = 15;
 
 async function claim(){
 
@@ -91,7 +123,41 @@ async function claim(){
   const data = await res.json();
 
   if(data.balance){
+
     document.getElementById("balance").innerText = data.balance;
+    document.getElementById("remain").innerText = data.remaining_today;
+    document.getElementById("cooldown").innerText = data.cooldown;
+
+    let t = data.cooldown;
+
+    let i = setInterval(()=>{
+      t--;
+      document.getElementById("cooldown").innerText = t;
+      if(t <= 0) clearInterval(i);
+    },1000);
+
+  } else {
+    alert(data.error);
+  }
+}
+
+async function withdraw(){
+
+  const dana = document.getElementById("dana").value;
+
+  const res = await fetch("/api/withdraw", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      telegram_id: user.id,
+      dana
+    })
+  });
+
+  const data = await res.json();
+
+  if(data.success){
+    alert("Withdraw sukses: " + data.amount);
   } else {
     alert(data.error);
   }
