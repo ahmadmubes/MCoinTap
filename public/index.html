@@ -62,7 +62,7 @@ input{
   opacity:0.7;
 }
 
-/* leaderboard TIDAK CENTER */
+/* leaderboard tetap kiri */
 .leaderboard{
   text-align:left;
   background:rgba(255,255,255,0.05);
@@ -82,6 +82,10 @@ input{
 <div class="box">👤 <span id="user"></span></div>
 
 <div class="box">💰 Balance: <span id="balance">0</span></div>
+
+<div class="box">🏆 Level: <span id="level">1</span></div>
+
+<div class="box">⚡ EXP: <span id="exp">0</span></div>
 
 <div class="box">⏳ Cooldown: <span id="cooldown">-</span></div>
 
@@ -128,15 +132,26 @@ body: JSON.stringify({ initData: tg.initData })
 const data = await res.json();
 
 if(data.balance){
+
 document.getElementById("balance").innerText = data.balance;
 document.getElementById("remain").innerText = data.remaining_today;
 document.getElementById("cooldown").innerText = data.cooldown;
 
+// LEVEL SYSTEM
+if(data.level){
+  document.getElementById("level").innerText = data.level;
+}
+
+if(data.exp){
+  document.getElementById("exp").innerText = data.exp;
+}
+
+// countdown UI
 let t = data.cooldown;
 let i = setInterval(()=>{
-t--;
-document.getElementById("cooldown").innerText = t;
-if(t<=0) clearInterval(i);
+  t--;
+  document.getElementById("cooldown").innerText = t;
+  if(t <= 0) clearInterval(i);
 },1000);
 
 }else{
@@ -159,6 +174,7 @@ dana
 });
 
 const data = await res.json();
+
 alert(data.success ? "Withdraw dikirim" : data.error);
 
 }
@@ -168,10 +184,14 @@ async function loadLeaderboard(){
 const res = await fetch("/api/leaderboard");
 const data = await res.json();
 
+if(!data.success) return;
+
 document.getElementById("leaderboard").innerHTML =
-data.data.map((u,i)=>`
-#${i+1} ${u.username || u.telegram_id}
-💰 ${u.balance} | 👥 ${u.referral_count || 0}
+data.data.map((u)=>`
+#${u.rank} ${u.username || u.telegram_id}
+💰 ${u.balance}
+👥 ${u.referral_count || 0}
+🏆 Lv ${u.level || 1}
 `).join("<br>");
 
 }
