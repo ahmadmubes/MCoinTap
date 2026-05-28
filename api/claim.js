@@ -180,11 +180,14 @@ export default async function handler(req, res) {
       .maybeSingle();
 
     return res.status(200).json({
-      success: true,
-      reward: REWARD,
-      balance: updated?.balance ?? newBalance,
-      remaining_today: MAX_DAILY - newCount
-    });
+  success: true,
+  reward: REWARD,
+  balance: updated?.balance ?? newBalance,
+  remaining_today: MAX_DAILY - newCount,
+  cooldown: COOLDOWN / 1000,
+  daily_limit: MAX_DAILY,
+  daily_used: newCount
+});
 
   } catch (err) {
     console.log("SERVER ERROR:", err);
