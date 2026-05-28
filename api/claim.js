@@ -9,6 +9,9 @@ const supabase = createClient(
 const BOT_TOKEN = process.env.BOT_TOKEN;
 
 const REWARD = 100;
+const EXP_GAIN = 20;
+const LEVEL_UP_EXP = 200;
+
 const COOLDOWN = 15000;
 const MAX_DAILY = 20;
 
@@ -53,14 +56,9 @@ export default async function handler(req, res) {
     }
 
     const { initData } = req.body || {};
+    if (!initData) return res.status(400).json({ error: "Missing initData" });
 
-    if (!initData) {
-      return res.status(400).json({ error: "Missing initData" });
-    }
-
-    // VERIFY TELEGRAM
-    const valid = verifyTelegram(initData);
-    if (!valid) {
+    if (!verifyTelegram(initData)) {
       return res.status(403).json({ error: "Invalid Telegram" });
     }
 
@@ -69,32 +67,15 @@ export default async function handler(req, res) {
 
     const telegram_id = tgUser.id;
     const username = tgUser.username || null;
-    const ref = params.get("start_param") || params.get("ref");
 
-    // IP + DEVICE
-    const ip =
-      req.headers["x-forwarded-for"] ||
-      req.socket.remoteAddress ||
-      "unknown";
-
-    const userAgent = req.headers["user-agent"] || "";
-
-    const device_id = crypto
-      .createHash("sha256")
-      .update(String(telegram_id) + userAgent)
-      .digest("hex");
-
-    // GET USER
     let { data: user } = await supabase
       .from("users")
       .select("*")
       .eq("telegram_id", telegram_id)
       .maybeSingle();
 
-    // CREATE USER
     if (!user) {
-
-      const { data: newUser, error } = await supabase
+      const { data: newUser } = await supabase
         .from("users")
         .insert({
           telegram_id,
@@ -103,75 +84,13 @@ export default async function handler(req, res) {
           daily_count: 0,
           last_claim: null,
           last_reset: today(),
-          ref_by: null,
-          referral_count: 0,
-          device_id,
-          ip_address: ip,
-          last_ip: ip,
-          created_at: new Date().toISOString()
+          level: 1,
+          exp: 0
         })
         .select()
         .maybeSingle();
 
-      if (error) {
-        return res.status(500).json({ error: "Insert user gagal" });
-      }
-
       user = newUser;
-    }
-
-    // 🔥 ANTI MULTI ACCOUNT PRO
-    if (user) {
-
-      const { data: ipUsers } = await supabase
-        .from("users")
-        .select("telegram_id")
-        .eq("ip_address", ip);
-
-      if (ipUsers && ipUsers.length >= 2 && !user.device_id) {
-        return res.status(403).json({
-          error: "Too many accounts from same IP"
-        });
-      }
-
-      if (user.device_id && user.device_id !== device_id) {
-        return res.status(403).json({
-          error: "Device mismatch detected"
-        });
-      }
-    }
-
-    // REFERRAL SAFETY
-    if (ref && ref == telegram_id) {
-      return res.status(400).json({ error: "Invalid referral" });
-    }
-
-    if (ref && ref != telegram_id) {
-
-      const { data: refUser } = await supabase
-        .from("users")
-        .select("telegram_id, balance, referral_count")
-        .eq("telegram_id", ref)
-        .maybeSingle();
-
-      if (refUser) {
-
-        await supabase
-          .from("users")
-          .update({
-            ref_by: ref,
-            balance: (user.balance || 0) + 200
-          })
-          .eq("telegram_id", telegram_id);
-
-        await supabase
-          .from("users")
-          .update({
-            balance: (refUser.balance || 0) + 500,
-            referral_count: (refUser.referral_count || 0) + 1
-          })
-          .eq("telegram_id", ref);
-      }
     }
 
     // COOLDOWN
@@ -190,6 +109,28 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Limit harian habis" });
     }
 
+    // DAILY MISSION CHECK (sekali per hari bonus exp)
+    let bonusExp = 0;
+
+    if (user.last_daily_check !== today()) {
+      bonusExp = 50;
+
+      await supabase
+        .from("users")
+        .update({
+          last_daily_check: today()
+        })
+        .eq("telegram_id", telegram_id);
+    }
+
+    let newExp = (user.exp || 0) + EXP_GAIN + bonusExp;
+    let newLevel = user.level || 1;
+
+    if (newExp >= LEVEL_UP_EXP) {
+      newLevel += 1;
+      newExp = newExp - LEVEL_UP_EXP;
+    }
+
     const newBalance = (user.balance || 0) + REWARD;
     const newCount = (user.daily_count || 0) + 1;
 
@@ -199,7 +140,8 @@ export default async function handler(req, res) {
         balance: newBalance,
         daily_count: newCount,
         last_claim: new Date().toISOString(),
-        last_ip: ip
+        exp: newExp,
+        level: newLevel
       })
       .eq("telegram_id", telegram_id)
       .select()
@@ -209,12 +151,14 @@ export default async function handler(req, res) {
       success: true,
       reward: REWARD,
       balance: updated.balance,
+      level: updated.level,
+      exp: updated.exp,
       remaining_today: MAX_DAILY - newCount,
-      cooldown: COOLDOWN / 1000
+      cooldown: COOLDOWN / 1000,
+      daily_bonus: bonusExp
     });
 
   } catch (err) {
-    console.log("SERVER ERROR:", err);
     return res.status(500).json({ error: "Server error" });
   }
 }
