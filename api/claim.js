@@ -7,7 +7,7 @@ const supabase = createClient(
 );
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-
+console.log("BOT TOKEN:", BOT_TOKEN);
 const REWARD = 100;
 const COOLDOWN = 15000;
 const MAX_DAILY = 20;
