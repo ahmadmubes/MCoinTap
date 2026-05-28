@@ -7,9 +7,8 @@ const supabase = createClient(
 );
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_ID = process.env.ADMIN_ID;
 
-// VERIFY TELEGRAM INIT DATA
+// VERIFY TELEGRAM
 function verifyTelegram(initData) {
   try {
     const urlParams = new URLSearchParams(initData);
@@ -48,62 +47,72 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing initData" });
     }
 
-    // 🔐 VERIFY TELEGRAM
     if (!verifyTelegram(initData)) {
       return res.status(403).json({ error: "Invalid Telegram" });
     }
 
     const params = new URLSearchParams(initData);
     const user = JSON.parse(params.get("user"));
-
     const telegram_id = user.id;
 
-    // 🔥 ONLY ADMIN CAN ACCESS
-    if (String(telegram_id) !== String(ADMIN_ID)) {
-      return res.status(403).json({ error: "Not authorized admin" });
+    // 🔥 CHECK ROLE
+    const { data: roleData } = await supabase
+      .from("admin_roles")
+      .select("*")
+      .eq("telegram_id", telegram_id)
+      .maybeSingle();
+
+    if (!roleData) {
+      return res.status(403).json({ error: "Not admin" });
     }
 
-    // =========================
-    // ADMIN ACTIONS
-    // =========================
+    const role = roleData.role; // owner / moderator
 
-    // GET USERS
+    // =========================
+    // OWNER ONLY ACTIONS
+    // =========================
+    const isOwner = role === "owner";
+
+    // GET USERS (owner + mod)
     if (action === "get_users") {
       const { data } = await supabase
         .from("users")
-        .select("*")
+        .select("telegram_id, username, balance, referral_count, level")
         .order("balance", { ascending: false })
         .limit(50);
 
-      return res.json({ success: true, data });
+      return res.json({ success: true, role, data });
     }
 
-    // BAN USER
+    // BAN (OWNER ONLY)
     if (action === "ban") {
+      if (!isOwner) {
+        return res.status(403).json({ error: "Only owner can ban users" });
+      }
+
       await supabase
         .from("users")
-        .update({
-          balance: 0,
-          referral_count: 0
-        })
+        .update({ balance: 0, referral_count: 0 })
         .eq("telegram_id", target_id);
 
-      return res.json({ success: true, message: "User banned" });
+      return res.json({ success: true });
     }
 
-    // UNBAN USER
+    // UNBAN (OWNER ONLY)
     if (action === "unban") {
+      if (!isOwner) {
+        return res.status(403).json({ error: "Only owner can unban users" });
+      }
+
       await supabase
         .from("users")
-        .update({
-          balance: 100
-        })
+        .update({ balance: 100 })
         .eq("telegram_id", target_id);
 
-      return res.json({ success: true, message: "User unbanned" });
+      return res.json({ success: true });
     }
 
-    // GET WITHDRAW
+    // WITHDRAW LIST (ALL ADMIN)
     if (action === "get_withdraw") {
       const { data } = await supabase
         .from("withdraw_requests")
@@ -111,11 +120,12 @@ export default async function handler(req, res) {
         .eq("status", "pending")
         .order("created_at", { ascending: false });
 
-      return res.json({ success: true, data });
+      return res.json({ success: true, role, data });
     }
 
-    // APPROVE WITHDRAW
+    // APPROVE WITHDRAW (OWNER + MODERATOR)
     if (action === "approve_withdraw") {
+
       await supabase
         .from("withdraw_requests")
         .update({ status: "approved" })
@@ -124,8 +134,12 @@ export default async function handler(req, res) {
       return res.json({ success: true });
     }
 
-    // REJECT WITHDRAW + REFUND
+    // REJECT WITHDRAW (ONLY OWNER)
     if (action === "reject_withdraw") {
+
+      if (!isOwner) {
+        return res.status(403).json({ error: "Only owner can reject" });
+      }
 
       const { data: wd } = await supabase
         .from("withdraw_requests")
