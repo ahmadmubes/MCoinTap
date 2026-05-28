@@ -58,7 +58,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing initData" });
     }
 
-    // VERIFY
     const valid = verifyTelegram(initData);
     if (!valid) {
       return res.status(403).json({ error: "Invalid Telegram" });
@@ -68,6 +67,7 @@ export default async function handler(req, res) {
     const tgUser = JSON.parse(params.get("user"));
 
     const telegram_id = tgUser.id;
+    const username = tgUser.username || null;
 
     const ref = params.get("start_param") || params.get("ref");
 
@@ -78,19 +78,21 @@ export default async function handler(req, res) {
       .eq("telegram_id", telegram_id)
       .maybeSingle();
 
-    // CREATE USER JIKA BELUM ADA
+    // CREATE USER
     if (!user) {
 
       const { data: newUser, error } = await supabase
         .from("users")
         .insert({
           telegram_id,
+          username,
           balance: 0,
           daily_count: 0,
           last_claim: null,
           last_reset: today(),
           ref_by: null,
-          referral_count: 0
+          referral_count: 0,
+          created_at: new Date().toISOString()
         })
         .select()
         .maybeSingle();
@@ -102,7 +104,7 @@ export default async function handler(req, res) {
       user = newUser;
     }
 
-    // 🔥 FIX PENTING: REFERRAL DIPINDAH KE SINI (SETELAH USER ADA)
+    // REFERRAL SYSTEM
     if (ref && ref != telegram_id) {
 
       const { data: refUser } = await supabase
@@ -113,7 +115,6 @@ export default async function handler(req, res) {
 
       if (refUser) {
 
-        // update user baru
         await supabase
           .from("users")
           .update({
@@ -122,7 +123,6 @@ export default async function handler(req, res) {
           })
           .eq("telegram_id", telegram_id);
 
-        // update referrer
         await supabase
           .from("users")
           .update({
