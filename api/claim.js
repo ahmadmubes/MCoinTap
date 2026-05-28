@@ -7,10 +7,14 @@ const supabase = createClient(
 );
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-console.log("BOT TOKEN:", BOT_TOKEN);
+
 const REWARD = 100;
 const COOLDOWN = 15000;
 const MAX_DAILY = 20;
+
+function today() {
+  return new Date().toDateString();
+}
 
 function verifyTelegram(initData) {
 
@@ -41,14 +45,9 @@ function verifyTelegram(initData) {
 
     return hmac === hash;
 
-  } catch (e) {
-    console.log(e);
+  } catch {
     return false;
   }
-}
-
-function today() {
-  return new Date().toDateString();
 }
 
 export default async function handler(req, res) {
@@ -69,7 +68,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // VERIFY TELEGRAM
+    // verify telegram
     const valid = verifyTelegram(initData);
 
     if (!valid) {
@@ -84,16 +83,17 @@ export default async function handler(req, res) {
 
     const telegram_id = tgUser.id;
 
-    let { data: user } = await supabase
+    // ambil user
+    let { data: user, error } = await supabase
       .from("users")
       .select("*")
       .eq("telegram_id", telegram_id)
-      .single();
+      .maybeSingle();
 
-    // AUTO CREATE USER
+    // kalau belum ada → create
     if (!user) {
 
-      const { data: newUser } = await supabase
+      const insertResult = await supabase
         .from("users")
         .insert({
           telegram_id,
@@ -105,12 +105,18 @@ export default async function handler(req, res) {
         .select()
         .single();
 
-      user = newUser;
+      user = insertResult.data;
+
+      if (!user) {
+        return res.status(500).json({
+          error: "Create user failed"
+        });
+      }
     }
 
     const now = Date.now();
 
-    // RESET DAILY
+    // reset harian
     if (user.last_reset !== today()) {
 
       user.daily_count = 0;
@@ -124,7 +130,7 @@ export default async function handler(req, res) {
         .eq("telegram_id", telegram_id);
     }
 
-    // COOLDOWN
+    // cooldown
     if (user.last_claim) {
 
       const diff =
@@ -141,7 +147,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // LIMIT
+    // limit
     if (user.daily_count >= MAX_DAILY) {
 
       return res.status(403).json({
