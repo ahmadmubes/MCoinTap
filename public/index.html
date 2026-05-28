@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCoinTap</title>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:#0f172a;
+  color:white;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+
+.card{
+  width:90%;
+  max-width:400px;
+  background:rgba(255,255,255,0.05);
+  padding:20px;
+  border-radius:15px;
+  text-align:center;
+}
+
+button{
+  width:100%;
+  padding:15px;
+  border:none;
+  border-radius:10px;
+  background:#22c55e;
+  color:white;
+  font-weight:bold;
+}
+
+.balance{
+  font-size:32px;
+  margin:15px 0;
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+  <h2>💰 MCoinTap</h2>
+
+  <div id="user">Loading...</div>
+
+  <div class="balance">
+    <span id="balance">0</span> Point
+  </div>
+
+  <button onclick="claim()">🎁 Claim</button>
+
+  <p id="info"></p>
+</div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.expand();
+
+const user = tg?.initDataUnsafe?.user || {id:0,first_name:"Guest"};
+
+document.getElementById("user").innerText = user.first_name;
+
+let cooldown = false;
+
+async function claim(){
+
+  if(cooldown) return;
+  cooldown = true;
+
+  document.getElementById("info").innerText = "Processing...";
+
+  const res = await fetch("/api/claim", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      telegram_id: user.id
+    })
+  });
+
+  const data = await res.json();
+
+  if(res.ok){
+    document.getElementById("balance").innerText = data.balance;
+    document.getElementById("info").innerText = "Success + reward";
+  }else{
+    document.getElementById("info").innerText = data.error;
+  }
+
+  setTimeout(()=>{
+    cooldown = false;
+  },5000);
+
+}
+</script>
+
+</body>
+</html>
