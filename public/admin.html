@@ -62,7 +62,7 @@ tg.expand();
 const initData = tg.initData;
 
 // ======================
-// API CALL (SECURE)
+// API CALL
 // ======================
 async function api(body){
 
@@ -79,19 +79,23 @@ async function api(body){
 }
 
 // ======================
-// AUTO CHECK ADMIN
+// INIT ADMIN CHECK
 // ======================
 async function init(){
 
   const check = await api({action:"get_users"});
 
+  // ❌ NOT ADMIN
   if(check.error){
-   document.getElementById("status").innerHTML =
-"Role: " + data.role;
+    document.getElementById("status").innerHTML =
+      "❌ Not authorized";
     return;
   }
 
-  document.getElementById("status").style.display = "none";
+  // ✅ SUCCESS LOGIN
+  document.getElementById("status").innerHTML =
+    "✅ Role: " + (check.role || "admin");
+
   document.getElementById("panel").style.display = "block";
 }
 
@@ -111,7 +115,6 @@ async function loadUsers(){
       ID: ${u.telegram_id}<br>
       Balance: ${u.balance}<br>
       Ref: ${u.referral_count}
-
       <br>
       <button class="ban" onclick="ban(${u.telegram_id})">Ban</button>
       <button class="unban" onclick="unban(${u.telegram_id})">Unban</button>
