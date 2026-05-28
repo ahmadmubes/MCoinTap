@@ -17,20 +17,16 @@ function today() {
 }
 
 function verifyTelegram(initData) {
-
   try {
-
     const urlParams = new URLSearchParams(initData);
-
     const hash = urlParams.get("hash");
-
     if (!hash) return false;
 
     urlParams.delete("hash");
 
     const dataCheckString = [...urlParams.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => `${key}=${value}`)
+      .map(([k, v]) => `${k}=${v}`)
       .join("\n");
 
     const secretKey = crypto
@@ -44,56 +40,49 @@ function verifyTelegram(initData) {
       .digest("hex");
 
     return hmac === hash;
-
   } catch {
     return false;
   }
 }
 
 export default async function handler(req, res) {
-
   try {
 
     if (req.method !== "POST") {
-      return res.status(405).json({
-        error: "Method not allowed"
-      });
+      return res.status(405).json({ error: "Method not allowed" });
     }
 
     const { initData } = req.body || {};
 
     if (!initData) {
-      return res.status(400).json({
-        error: "Missing initData"
-      });
+      return res.status(400).json({ error: "Missing initData" });
     }
 
-    // verify telegram
+    // VERIFY
     const valid = verifyTelegram(initData);
-
     if (!valid) {
-      return res.status(403).json({
-        error: "Invalid Telegram"
-      });
+      return res.status(403).json({ error: "Invalid Telegram" });
     }
 
     const params = new URLSearchParams(initData);
-
     const tgUser = JSON.parse(params.get("user"));
-
     const telegram_id = tgUser.id;
 
-    // ambil user
+    // 🔥 FIX PENTING: pakai maybeSingle biar tidak crash
     let { data: user, error } = await supabase
       .from("users")
       .select("*")
       .eq("telegram_id", telegram_id)
       .maybeSingle();
 
-    // kalau belum ada → create
+    // DEBUG LOG
+    console.log("USER FROM DB:", user);
+    console.log("ERROR DB:", error);
+
+    // CREATE USER kalau null
     if (!user) {
 
-      const insertResult = await supabase
+      const { data: newUser, error: insertError } = await supabase
         .from("users")
         .insert({
           telegram_id,
@@ -103,22 +92,27 @@ export default async function handler(req, res) {
           last_reset: today()
         })
         .select()
-        .single();
+        .maybeSingle();
 
-      user = insertResult.data;
-
-      if (!user) {
-        return res.status(500).json({
-          error: "Create user failed"
-        });
+      if (insertError) {
+        console.log("INSERT ERROR:", insertError);
+        return res.status(500).json({ error: "Insert user gagal" });
       }
+
+      user = newUser;
+    }
+
+    // 🔥 SAFETY CHECK WAJIB
+    if (!user) {
+      return res.status(500).json({
+        error: "User null setelah create"
+      });
     }
 
     const now = Date.now();
 
-    // reset harian
+    // RESET DAILY
     if (user.last_reset !== today()) {
-
       user.daily_count = 0;
 
       await supabase
@@ -130,36 +124,25 @@ export default async function handler(req, res) {
         .eq("telegram_id", telegram_id);
     }
 
-    // cooldown
+    // COOLDOWN
     if (user.last_claim) {
-
-      const diff =
-        now - new Date(user.last_claim).getTime();
+      const diff = now - new Date(user.last_claim).getTime();
 
       if (diff < COOLDOWN) {
-
         return res.status(429).json({
           error: "Cooldown aktif",
-          cooldown_left: Math.ceil(
-            (COOLDOWN - diff) / 1000
-          )
+          cooldown_left: Math.ceil((COOLDOWN - diff) / 1000)
         });
       }
     }
 
-    // limit
+    // LIMIT
     if (user.daily_count >= MAX_DAILY) {
-
-      return res.status(403).json({
-        error: "Limit harian habis"
-      });
+      return res.status(403).json({ error: "Limit harian habis" });
     }
 
-    const newBalance =
-      (user.balance || 0) + REWARD;
-
-    const newCount =
-      (user.daily_count || 0) + 1;
+    const newBalance = (user.balance || 0) + REWARD;
+    const newCount = (user.daily_count || 0) + 1;
 
     const { data: updated } = await supabase
       .from("users")
@@ -170,22 +153,17 @@ export default async function handler(req, res) {
       })
       .eq("telegram_id", telegram_id)
       .select()
-      .single();
+      .maybeSingle();
 
     return res.status(200).json({
       success: true,
       reward: REWARD,
-      balance: updated.balance,
-      remaining_today:
-        MAX_DAILY - updated.daily_count
+      balance: updated?.balance ?? newBalance,
+      remaining_today: MAX_DAILY - newCount
     });
 
   } catch (err) {
-
     console.log("SERVER ERROR:", err);
-
-    return res.status(500).json({
-      error: "Server error"
-    });
+    return res.status(500).json({ error: "Server error" });
   }
 }
