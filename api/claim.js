@@ -85,12 +85,14 @@ export default async function handler(req, res) {
       const { data: newUser, error: insertError } = await supabase
         .from("users")
         .insert({
-          telegram_id,
-          balance: 0,
-          daily_count: 0,
-          last_claim: null,
-          last_reset: today()
-        })
+  telegram_id,
+  balance: 0,
+  daily_count: 0,
+  last_claim: null,
+  last_reset: today(),
+  ref_by: null,
+  referral_count: 0
+})
         .select()
         .maybeSingle();
 
