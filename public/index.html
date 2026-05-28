@@ -87,7 +87,8 @@ async function claim(){
   });
 
   const data = await res.json();
-
+console.log("STATUS:", res.status);
+console.log("DATA:", data);
   if(res.ok){
     document.getElementById("balance").innerText = data.balance;
     document.getElementById("info").innerText = "Success + reward";
