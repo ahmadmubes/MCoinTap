@@ -86,8 +86,8 @@ async function init(){
   const check = await api({action:"get_users"});
 
   if(check.error){
-    document.getElementById("status").innerHTML =
-      "❌ NOT AUTHORIZED (ONLY ADMIN CAN ACCESS)";
+   document.getElementById("status").innerHTML =
+"Role: " + data.role;
     return;
   }
 
