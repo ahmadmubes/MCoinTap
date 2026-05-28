@@ -1,4 +1,7 @@
+let balances = {};
+
 export default function handler(req, res) {
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -10,32 +13,15 @@ export default function handler(req, res) {
       return res.status(400).json({ error: "No user" });
     }
 
-    const REWARD = 100;
-
-    // simpan sementara memory server
-    global._balances = global._balances || {};
-    global._last = global._last || {};
-
-    const now = Date.now();
-
-    if (
-      global._last[telegram_id] &&
-      now - global._last[telegram_id] < 10000
-    ) {
-      return res.status(429).json({ error: "Cooldown" });
+    if (!balances[telegram_id]) {
+      balances[telegram_id] = 0;
     }
 
-    global._last[telegram_id] = now;
-
-    if (!global._balances[telegram_id]) {
-      global._balances[telegram_id] = 0;
-    }
-
-    global._balances[telegram_id] += REWARD;
+    balances[telegram_id] += 100;
 
     return res.status(200).json({
       success: true,
-      balance: global._balances[telegram_id]
+      balance: balances[telegram_id]
     });
 
   } catch (err) {
