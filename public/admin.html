@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>MCoinTap Admin</title>
+
+<style>
+body{
+  font-family:Arial;
+  background:#0f172a;
+  color:white;
+  padding:20px;
+}
+
+.box{
+  background:#1e293b;
+  padding:10px;
+  margin:10px 0;
+  border-radius:10px;
+}
+
+button{
+  margin:5px;
+  padding:5px 10px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+.ban{background:red;color:white;}
+.unban{background:green;color:white;}
+.approve{background:green;color:white;}
+.reject{background:orange;color:white;}
+</style>
+</head>
+
+<body>
+
+<h2>🔥 MCoinTap Admin Panel</h2>
+
+<button onclick="loadUsers()">Load Users</button>
+<button onclick="loadWithdraw()">Load Withdraw</button>
+
+<div id="users"></div>
+<div id="withdraw"></div>
+
+<script>
+
+const ADMIN_ID = prompt("Enter Admin ID");
+
+async function api(body){
+  const res = await fetch("/api/admin",{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      telegram_id: ADMIN_ID,
+      ...body
+    })
+  });
+
+  return await res.json();
+}
+
+// USERS
+async function loadUsers(){
+  const data = await api({action:"get_users"});
+
+  document.getElementById("users").innerHTML =
+  "<h3>Users</h3>" +
+  data.data.map(u=>`
+    <div class="box">
+      ID: ${u.telegram_id}<br>
+      Balance: ${u.balance}<br>
+      Ref: ${u.referral_count}
+
+      <br>
+      <button class="ban" onclick="ban(${u.telegram_id})">Ban</button>
+      <button class="unban" onclick="unban(${u.telegram_id})">Unban</button>
+    </div>
+  `).join("");
+}
+
+async function ban(id){
+  await api({action:"ban", target_id:id});
+  loadUsers();
+}
+
+async function unban(id){
+  await api({action:"unban", target_id:id});
+  loadUsers();
+}
+
+// WITHDRAW
+async function loadWithdraw(){
+  const data = await api({action:"get_withdraw"});
+
+  document.getElementById("withdraw").innerHTML =
+  "<h3>Withdraw Requests</h3>" +
+  data.data.map(w=>`
+    <div class="box">
+      User: ${w.telegram_id}<br>
+      Dana: ${w.dana}<br>
+      Amount: ${w.amount}<br>
+      Status: ${w.status}
+
+      <br>
+      <button class="approve" onclick="approve(${w.id})">Approve</button>
+      <button class="reject" onclick="reject(${w.id})">Reject</button>
+    </div>
+  `).join("");
+}
+
+async function approve(id){
+  await api({action:"approve_withdraw", withdraw_id:id});
+  loadWithdraw();
+}
+
+async function reject(id){
+  await api({action:"reject_withdraw", withdraw_id:id});
+  loadWithdraw();
+}
+
+</script>
+
+</body>
+</html>
