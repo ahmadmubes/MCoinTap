@@ -62,6 +62,7 @@ button{
 </div>
 
 <script>
+
 const tg = window.Telegram?.WebApp;
 tg?.expand();
 
@@ -69,39 +70,31 @@ const user = tg?.initDataUnsafe?.user || {id:0,first_name:"Guest"};
 
 document.getElementById("user").innerText = user.first_name;
 
-let cooldown = false;
-
 async function claim(){
 
-  if(cooldown) return;
-  cooldown = true;
-
-  document.getElementById("info").innerText = "Processing...";
+  document.getElementById("info").innerText = "Loading...";
 
   const res = await fetch("/api/claim", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify({
       telegram_id: user.id
     })
   });
 
   const data = await res.json();
-  alert(JSON.stringify(data));
-console.log("STATUS:", res.status);
-console.log("DATA:", data);
+
   if(res.ok){
     document.getElementById("balance").innerText = data.balance;
-    document.getElementById("info").innerText = "Success + reward";
-  }else{
+    document.getElementById("info").innerText = "+100 claimed";
+  } else {
     document.getElementById("info").innerText = data.error;
   }
 
-  setTimeout(()=>{
-    cooldown = false;
-  },5000);
-
 }
+
 </script>
 
 </body>
