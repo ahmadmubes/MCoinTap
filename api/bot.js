@@ -9,8 +9,8 @@ const supabase = createClient(
 );
 
 // URL MINI APP
-const MINIAPP_URL = "https://YOUR-VERCEL.vercel.app";
-const ADMIN_URL = "https://YOUR-VERCEL.vercel.app/admin.html";
+const MINIAPP_URL = "https://m-coin-tap.vercel.app/";
+const ADMIN_URL = "https://m-coin-tap.vercel.app/admin.html";
 
 const bot = new TelegramBot(TOKEN, {
   polling: true
