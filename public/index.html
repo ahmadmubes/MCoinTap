@@ -1,113 +1,75 @@
+
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8">
 <title>MCoinTap PRO</title>
-
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
 
 <style>
 body{
-  margin:0;
-  font-family:'Poppins',sans-serif;
-  background:linear-gradient(135deg,#0f172a,#1e293b,#020617);
-  color:white;
-  display:flex;
-  justify-content:center;
-  padding:20px;
+background:#020617;
+font-family:Arial;
+color:white;
+padding:20px;
+text-align:center;
 }
-
 .card{
-  width:100%;
-  max-width:420px;
-  text-align:center;
+background:#111827;
+padding:20px;
+border-radius:20px;
+max-width:420px;
+margin:auto;
+box-shadow:0 0 20px #22c55e55;
 }
-
-h2{
-  margin-bottom:10px;
-}
-
-.box{
-  background:rgba(255,255,255,0.05);
-  padding:12px;
-  margin:10px 0;
-  border-radius:12px;
-}
-
 button{
-  width:100%;
-  padding:12px;
-  border:none;
-  border-radius:12px;
-  background:#22c55e;
-  color:white;
-  font-weight:600;
-  cursor:pointer;
+padding:14px 25px;
+margin:8px;
+border:none;
+border-radius:12px;
+background:#22c55e;
+color:white;
+font-weight:bold;
+cursor:pointer;
 }
-
-input{
-  width:100%;
-  padding:10px;
-  border-radius:10px;
-  border:none;
-  margin-top:8px;
-  text-align:center;
+h1{
+color:#22c55e;
 }
-
-.small{
-  font-size:12px;
-  opacity:0.7;
-}
-
-/* leaderboard tetap kiri */
-.leaderboard{
-  text-align:left;
-  background:rgba(255,255,255,0.05);
-  padding:10px;
-  border-radius:12px;
+.box{
+background:#1e293b;
+padding:12px;
+border-radius:12px;
+margin-top:10px;
 }
 </style>
-
 </head>
 
 <body>
 
 <div class="card">
 
-<h2>💰 MCoinTap PRO</h2>
-
-<div class="box">👤 <span id="user"></span></div>
-
-<div class="box">💰 Balance: <span id="balance">0</span></div>
-
-<div class="box">🏆 Level: <span id="level">1</span></div>
-
-<div class="box">⚡ EXP: <span id="exp">0</span></div>
-
-<div class="box">⏳ Cooldown: <span id="cooldown">-</span></div>
-
-<div class="box">🎯 Sisa Claim: <span id="remain">-</span></div>
-
-<button onclick="claim()">CLAIM</button>
+<h1>MCoinTap PRO</h1>
 
 <div class="box">
-👥 Referral: <span id="ref">0</span>
+<h2 id="balance">Balance: 0</h2>
+<p id="vip">VIP 1</p>
+</div>
+
+<button onclick="watchAd()">WATCH AD (+10)</button>
+<button onclick="dailyBonus()">DAILY BONUS</button>
+<button onclick="spin()">SPIN WHEEL</button>
+
+<div class="box">
+<h3>Referral</h3>
+<p id="ref">Loading...</p>
 </div>
 
 <div class="box">
-💸 Withdraw DANA
-<input id="dana" placeholder="Nomor DANA">
-<button onclick="withdraw()">WITHDRAW</button>
-<div class="small">Min 5000 coin</div>
+<h3>Leaderboard</h3>
+<div id="leaderboard"></div>
 </div>
 
-<div class="leaderboard">
-🏆 Leaderboard
-<div id="leaderboard">Loading...</div>
-</div>
+<p id="status"></p>
 
 </div>
 
@@ -116,87 +78,102 @@ input{
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-const user = tg.initDataUnsafe.user;
+async function loadUser(){
 
-document.getElementById("user").innerText =
-user.first_name + " @" + (user.username || "-");
-
-async function claim(){
-
-const res = await fetch("/api/claim",{
+const res = await fetch("/api/user",{
 method:"POST",
-headers:{ "Content-Type":"application/json" },
-body: JSON.stringify({ initData: tg.initData })
-});
-
-const data = await res.json();
-
-if(data.balance){
-
-document.getElementById("balance").innerText = data.balance;
-document.getElementById("remain").innerText = data.remaining_today;
-document.getElementById("cooldown").innerText = data.cooldown;
-
-// LEVEL SYSTEM
-if(data.level){
-  document.getElementById("level").innerText = data.level;
-}
-
-if(data.exp){
-  document.getElementById("exp").innerText = data.exp;
-}
-
-// countdown UI
-let t = data.cooldown;
-let i = setInterval(()=>{
-  t--;
-  document.getElementById("cooldown").innerText = t;
-  if(t <= 0) clearInterval(i);
-},1000);
-
-}else{
-alert(data.error);
-}
-
-}
-
-async function withdraw(){
-
-const dana = document.getElementById("dana").value;
-
-const res = await fetch("/api/withdraw",{
-method:"POST",
-headers:{ "Content-Type":"application/json" },
-body: JSON.stringify({
-telegram_id: user.id,
-dana
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+initData:tg.initData
 })
 });
 
 const data = await res.json();
 
-alert(data.success ? "Withdraw dikirim" : data.error);
+document.getElementById("balance").innerText =
+"Balance: " + data.balance;
+
+document.getElementById("vip").innerText =
+"VIP " + data.vip_level;
+
+document.getElementById("ref").innerText =
+data.referral_code;
 
 }
 
-async function loadLeaderboard(){
+async function watchAd(){
 
-const res = await fetch("/api/leaderboard");
+document.getElementById("status").innerText =
+"Watching ad...";
+
+setTimeout(async()=>{
+
+const res = await fetch("/api/claim",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+initData:tg.initData
+})
+});
+
 const data = await res.json();
 
-if(!data.success) return;
+document.getElementById("status").innerText =
+data.message || data.error;
 
-document.getElementById("leaderboard").innerHTML =
-data.data.map((u)=>`
-#${u.rank} ${u.username || u.telegram_id}
-💰 ${u.balance}
-👥 ${u.referral_count || 0}
-🏆 Lv ${u.level || 1}
-`).join("<br>");
+loadUser();
+
+},5000);
 
 }
 
-loadLeaderboard();
+async function dailyBonus(){
+
+const res = await fetch("/api/daily",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+initData:tg.initData
+})
+});
+
+const data = await res.json();
+
+document.getElementById("status").innerText =
+data.message || data.error;
+
+loadUser();
+
+}
+
+async function spin(){
+
+const res = await fetch("/api/spin",{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+initData:tg.initData
+})
+});
+
+const data = await res.json();
+
+document.getElementById("status").innerText =
+data.message || data.error;
+
+loadUser();
+
+}
+
+loadUser();
 
 </script>
 
