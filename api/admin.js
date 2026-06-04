@@ -151,7 +151,7 @@ export default async function handler(req, res) {
         await supabase
           .from("users")
           .update({
-            balance: supabase.raw(`balance + ${wd.amount}`)
+            balance: (userData.balance || 0) + wd.amount
           })
           .eq("telegram_id", wd.telegram_id);
       }
