@@ -13,7 +13,7 @@ const MINIAPP_URL = "https://m-coin-tap.vercel.app/";
 const ADMIN_URL = "https://m-coin-tap.vercel.app/admin.html";
 
 const bot = new TelegramBot(TOKEN, {
-  polling: true
+  polling: false
 });
 
 // ==========================
@@ -74,3 +74,6 @@ Role: ${adminRole?.role || "user"}`,
 });
 
 console.log("🔥 MCoinTap BOT RUNNING...");
+
+
+console.log("Gunakan webhook untuk deploy production.");
